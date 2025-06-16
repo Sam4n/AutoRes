@@ -56,20 +56,24 @@ async Task MakeReservation()
     AnsiConsole.Write(new Rule("[bold yellow]Make a Reservation[/]"));
     
     // Select park
+    var supportedParks = ParkServiceFactory.GetSupportedParks();
+    supportedParks.Add("Back to Main Menu");
+    
     var parkChoice = AnsiConsole.Prompt(
         new SelectionPrompt<string>()
             .Title("[green]Select a park:[/]")
-            .AddChoices(new[] {
-                "Joffre Lakes Provincial Park",
-                "Garibaldi Provincial Park",
-                "Golden Ears Provincial Park",
-                "Back to Main Menu"
+            .AddChoices(supportedParks)
+            .UseConverter(park => 
+            {
+                if (park == "Back to Main Menu") return park;
+                var description = ParkServiceFactory.GetParkDescription(park);
+                return $"{park}\n[dim]{description}[/]";
             }));
     
     if (parkChoice == "Back to Main Menu") return;
     
-    // For now, only Joffre Lakes is implemented
-    if (parkChoice != "Joffre Lakes Provincial Park")
+    // Check if park is supported
+    if (!ParkServiceFactory.GetSupportedParks().Contains(parkChoice))
     {
         AnsiConsole.MarkupLine("[red]This park is not yet implemented. Coming soon![/]");
         return;
@@ -150,8 +154,8 @@ async Task MakeReservation()
         return;
     }
     
-    // Make the reservation
-    var service = new JoffreLakesReservationService();
+    // Make the reservation with smart self-healing service
+    var service = ParkServiceFactory.CreateService(parkChoice);
     
     AnsiConsole.WriteLine();
     AnsiConsole.MarkupLine("[bold]Starting reservation process...[/]");
@@ -194,13 +198,13 @@ async Task CheckAvailability()
     AnsiConsole.Clear();
     AnsiConsole.Write(new Rule("[bold yellow]Check Availability[/]"));
     
+    var supportedParks = ParkServiceFactory.GetSupportedParks();
+    supportedParks.Add("Back to Main Menu");
+    
     var parkChoice = AnsiConsole.Prompt(
         new SelectionPrompt<string>()
             .Title("[green]Select a park:[/]")
-            .AddChoices(new[] {
-                "Joffre Lakes Provincial Park",
-                "Back to Main Menu"
-            }));
+            .AddChoices(supportedParks));
     
     if (parkChoice == "Back to Main Menu") return;
     
@@ -208,7 +212,7 @@ async Task CheckAvailability()
         new TextPrompt<DateTime>("[green]Enter date to check (YYYY-MM-DD):[/]")
             .PromptStyle("green"));
     
-    var service = new JoffreLakesReservationService();
+    var service = ParkServiceFactory.CreateService(parkChoice);
     
     await AnsiConsole.Status()
         .Spinner(Spinner.Known.Dots)

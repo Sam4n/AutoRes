@@ -12,7 +12,16 @@ public class SettingsService
     {
         var appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
         var autoResPath = Path.Combine(appDataPath, "AutoRes");
-        Directory.CreateDirectory(autoResPath);
+        
+        try
+        {
+            Directory.CreateDirectory(autoResPath);
+        }
+        catch
+        {
+            // Fallback to local directory if can't create AppData folder
+            autoResPath = Directory.GetCurrentDirectory();
+        }
         
         _settingsPath = Path.Combine(autoResPath, "settings.json");
         _settings = LoadSettings();

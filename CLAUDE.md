@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-AutoRes is a BC Parks reservation automation tool that helps users book day-use passes for popular provincial parks in British Columbia, Canada. It uses Microsoft Playwright for browser automation and Spectre.Console for an enhanced terminal interface.
+AutoRes is a BC Parks reservation automation tool that helps users book day-use passes for popular provincial parks in British Columbia, Canada. Currently supports Joffre Lakes and Garibaldi Provincial Parks. Uses Microsoft Playwright for browser automation and Spectre.Console for an enhanced terminal interface.
 
 ## Build and Run Commands
 
@@ -38,7 +38,11 @@ The application follows a service-based architecture:
 - `Models/`: Data models for reservations and user settings
 - `Services/`: 
   - Park-specific reservation services implementing `IParkReservationService`
+  - `SmartJoffreLakesReservationService`: Self-healing automation for Joffre Lakes
+  - `SmartGaribaldiReservationService`: Self-healing automation for Garibaldi with trailhead selection
+  - `ParkServiceFactory`: Factory for creating appropriate park services
   - `SettingsService`: Handles persistent storage of user preferences
+  - `AutomationLearningService`: Records and learns from each automation attempt
 - `Program.cs`: Main entry point with Spectre.Console menu system
 
 Key patterns:
@@ -46,6 +50,8 @@ Key patterns:
 - Service interface for extensibility to other parks
 - Progress indicators and rich console output via Spectre.Console
 - Settings persistence in JSON format to AppData folder
+- Self-healing automation with multiple selector strategies
+- Learning system that improves success rates over time
 
 ## Development Notes
 
