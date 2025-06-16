@@ -37,10 +37,14 @@ public class SettingsService
     
     public void SaveLastReservation(string park, DateTime date, int numberOfPeople, string email)
     {
+        Console.WriteLine($"[DEBUG] SaveLastReservation called with: park={park}, date={date}, people={numberOfPeople}, email={email}");
+        
         _settings.LastSelectedPark = park;
         _settings.LastSelectedDate = date;
         _settings.LastNumberOfPeople = numberOfPeople;
         _settings.LastEmail = email;
+        
+        Console.WriteLine($"[DEBUG] Settings updated. Calling SaveSettings()...");
         SaveSettings();
     }
     
@@ -65,15 +69,25 @@ public class SettingsService
     {
         try
         {
+            Console.WriteLine($"[DEBUG] Loading settings from: {_settingsPath}");
+            
             if (File.Exists(_settingsPath))
             {
                 var json = File.ReadAllText(_settingsPath);
-                return JsonSerializer.Deserialize<UserSettings>(json) ?? new UserSettings();
+                Console.WriteLine($"[DEBUG] Found settings file with content: {json}");
+                
+                var settings = JsonSerializer.Deserialize<UserSettings>(json) ?? new UserSettings();
+                Console.WriteLine($"[DEBUG] Loaded email: {settings.LastEmail}");
+                return settings;
+            }
+            else
+            {
+                Console.WriteLine($"[DEBUG] Settings file does not exist, creating new settings");
             }
         }
-        catch
+        catch (Exception ex)
         {
-            // If there's any error loading settings, just return new settings
+            Console.WriteLine($"[ERROR] Failed to load settings: {ex.Message}");
         }
         
         return new UserSettings();
@@ -88,10 +102,19 @@ public class SettingsService
                 WriteIndented = true 
             });
             File.WriteAllText(_settingsPath, json);
+            
+            // Debug: Verify the file was written
+            if (File.Exists(_settingsPath))
+            {
+                var fileContent = File.ReadAllText(_settingsPath);
+                Console.WriteLine($"[DEBUG] Settings saved to: {_settingsPath}");
+                Console.WriteLine($"[DEBUG] Content: {fileContent}");
+            }
         }
-        catch
+        catch (Exception ex)
         {
-            // Silently fail if we can't save settings
+            Console.WriteLine($"[ERROR] Failed to save settings: {ex.Message}");
+            Console.WriteLine($"[ERROR] Attempted path: {_settingsPath}");
         }
     }
 }

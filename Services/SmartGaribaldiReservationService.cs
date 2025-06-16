@@ -20,6 +20,13 @@ public class SmartGaribaldiReservationService : IParkReservationService
         CheakamusLake
     }
     
+    public class ParkStatus
+    {
+        public bool IsClosed { get; set; }
+        public string ClosureReason { get; set; } = string.Empty;
+        public bool IsAvailable => !IsClosed;
+    }
+    
     public SmartGaribaldiReservationService()
     {
         _learningService = new AutomationLearningService(ParkName);
@@ -80,6 +87,17 @@ public class SmartGaribaldiReservationService : IParkReservationService
                     
                     task.Description = "[yellow]Searching for Garibaldi Park[/]";
                     task.Increment(10);
+                    
+                    // Check if Garibaldi is currently available for booking
+                    var parkStatus = await CheckParkStatus(page);
+                    
+                    if (parkStatus.IsClosed)
+                    {
+                        result.Success = false;
+                        result.ErrorMessage = $"Garibaldi Provincial Park is currently closed for reservations. {parkStatus.ClosureReason}";
+                        _learningService.EndSession(false, result.ErrorMessage);
+                        return;
+                    }
                     
                     // Try multiple strategies to find the park
                     var parkFound = await TryFindAndSelectPark(page, trailhead);
@@ -237,6 +255,79 @@ public class SmartGaribaldiReservationService : IParkReservationService
                 }));
         
         return await Task.FromResult(trailhead);
+    }
+    
+    private async Task<ParkStatus> CheckParkStatus(IPage page)
+    {
+        _learningService.RecordStep("CheckParkStatus", "check_availability");
+        
+        try
+        {
+            // Look for Garibaldi park section and check its status
+            var garibaldiSection = page.Locator("text=/Garibaldi Provincial Park/i").First;
+            
+            if (await garibaldiSection.IsVisibleAsync())
+            {
+                // Get the parent container of the Garibaldi section
+                var parkContainer = garibaldiSection.Locator("xpath=ancestor::div[contains(@class, 'park') or contains(@class, 'card') or contains(@class, 'section')][1]");
+                
+                // Check for closure indicators
+                var closureIndicators = new[]
+                {
+                    "text=/closed/i",
+                    "[class*='closed']",
+                    "[class*='unavailable']",
+                    ".status-closed",
+                    "text=/temporarily closed/i"
+                };
+                
+                foreach (var indicator in closureIndicators)
+                {
+                    var closureElement = parkContainer.Locator(indicator).First;
+                    if (await closureElement.IsVisibleAsync())
+                    {
+                        // Try to get the closure reason
+                        var reasonText = await closureElement.TextContentAsync() ?? "";
+                        
+                        // Look for additional closure information nearby
+                        var additionalInfo = parkContainer.Locator("text=/rubble creek/i, text=/access points/i").First;
+                        if (await additionalInfo.IsVisibleAsync())
+                        {
+                            var additionalText = await additionalInfo.TextContentAsync() ?? "";
+                            reasonText += " " + additionalText;
+                        }
+                        
+                        _learningService.RecordSuccess("CheckParkStatus");
+                        return new ParkStatus 
+                        { 
+                            IsClosed = true, 
+                            ClosureReason = reasonText.Trim() 
+                        };
+                    }
+                }
+                
+                // Check if there's a "Book a Pass" button available
+                var bookButton = parkContainer.Locator("button:has-text('Book a Pass'), a:has-text('Book a Pass')").First;
+                if (!await bookButton.IsVisibleAsync())
+                {
+                    _learningService.RecordSuccess("CheckParkStatus");
+                    return new ParkStatus 
+                    { 
+                        IsClosed = true, 
+                        ClosureReason = "No booking button available - park may be closed or unavailable" 
+                    };
+                }
+            }
+            
+            _learningService.RecordSuccess("CheckParkStatus");
+            return new ParkStatus { IsClosed = false };
+        }
+        catch (Exception ex)
+        {
+            _learningService.RecordError("CheckParkStatus", ex.Message);
+            // If we can't determine status, assume it's available and let the booking process handle any issues
+            return new ParkStatus { IsClosed = false };
+        }
     }
     
     private async Task<bool> CheckIfDateRequiresPass(DateTime date, Trailhead trailhead)

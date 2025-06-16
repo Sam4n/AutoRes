@@ -4,7 +4,11 @@
       "WebFetch(domain:bcparks.ca)",
       "Bash(dotnet add:*)",
       "Bash(dotnet --version)",
-      "Bash(dotnet build)"
+      "Bash(dotnet build)",
+      "Bash(find:*)",
+      "WebFetch(domain:learn.microsoft.com)",
+      "Bash(rm:*)",
+      "Bash(dotnet run:*)"
     ],
     "deny": []
   }

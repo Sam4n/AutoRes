@@ -24,6 +24,7 @@ while (true)
                 "Make a Reservation",
                 "Check Availability",
                 "View Saved Credentials",
+                "🤖 AI Configuration",
                 "Exit"
             }));
 
@@ -37,6 +38,9 @@ while (true)
             break;
         case "View Saved Credentials":
             ViewCredentials();
+            break;
+        case "🤖 AI Configuration":
+            await ShowAIConfiguration();
             break;
         case "Exit":
             AnsiConsole.MarkupLine("[yellow]Thank you for using BC Parks Reservation Automation![/]");
@@ -154,8 +158,26 @@ async Task MakeReservation()
         return;
     }
     
-    // Make the reservation with smart self-healing service
-    var service = ParkServiceFactory.CreateService(parkChoice);
+    // Check if AI is available and offer the option
+    bool useAI = false;
+    
+    if (ParkServiceFactory.IsAIAvailable() && ParkServiceFactory.GetAIEnabledParks().Contains(parkChoice))
+    {
+        useAI = AnsiConsole.Confirm(
+            $"[yellow]🤖 AI-Enhanced automation is available for {parkChoice}. Would you like to use it?[/]");
+        
+        if (useAI)
+        {
+            AnsiConsole.MarkupLine("[green]🤖 Using AI-enhanced automation - more adaptive and intelligent![/]");
+        }
+    }
+    else if (!ParkServiceFactory.IsAIAvailable())
+    {
+        AnsiConsole.MarkupLine("[dim]💡 Tip: Set OPENAI_API_KEY environment variable to enable AI-enhanced automation[/]");
+    }
+    
+    // Create the service (AI-enhanced or regular)
+    var service = ParkServiceFactory.CreateService(parkChoice, useAI);
     
     AnsiConsole.WriteLine();
     AnsiConsole.MarkupLine("[bold]Starting reservation process...[/]");
@@ -257,6 +279,87 @@ void ViewCredentials()
         {
             settingsService.SaveLastReservation("", DateTime.MinValue, 0, "");
             AnsiConsole.MarkupLine("[green]Settings cleared![/]");
+        }
+    }
+}
+
+async Task ShowAIConfiguration()
+{
+    AnsiConsole.Clear();
+    AnsiConsole.Write(new Rule("[bold yellow]🤖 AI Configuration[/]"));
+    
+    var isAIAvailable = ParkServiceFactory.IsAIAvailable();
+    
+    if (isAIAvailable)
+    {
+        var panel = new Panel(@"
+[bold green]✅ AI is configured and ready![/]
+
+[yellow]AI-Enhanced Features Available:[/]
+• Intelligent page analysis and decision making
+• Adaptive element detection (handles UI changes)
+• Smart error recovery and alternative strategies
+• Context-aware automation flow
+• Natural language problem solving
+
+[yellow]AI-Enabled Parks:[/]
+• Garibaldi Provincial Park 🤖
+
+[bold]Status:[/] [green]Ready to use AI-enhanced automation[/]
+")
+        {
+            Header = new PanelHeader("[bold green]🤖 AI Status: ACTIVE[/]"),
+            Border = BoxBorder.Double,
+            Padding = new Padding(1, 0)
+        };
+        
+        AnsiConsole.Write(panel);
+        
+        var testAI = AnsiConsole.Confirm("[yellow]Would you like to test AI connectivity?[/]");
+        if (testAI)
+        {
+            AnsiConsole.MarkupLine("[yellow]Testing AI connection...[/]");
+            
+            try
+            {
+                var aiSupervisor = new MockAIPageSupervisor();
+                var testResult = await aiSupervisor.AskAI("Please respond with 'AI test successful' to confirm connectivity.");
+                
+                if (testResult.Contains("successful") || testResult.Contains("AI"))
+                {
+                    AnsiConsole.MarkupLine("[green]✅ AI connection test successful![/]");
+                    AnsiConsole.MarkupLine($"[dim]AI Response: {testResult}[/]");
+                }
+                else
+                {
+                    AnsiConsole.MarkupLine("[yellow]⚠️ AI responded but may have issues.[/]");
+                    AnsiConsole.MarkupLine($"[dim]Response: {testResult}[/]");
+                }
+            }
+            catch (Exception ex)
+            {
+                AnsiConsole.MarkupLine($"[red]❌ AI connection test failed: {ex.Message}[/]");
+            }
+        }
+    }
+    else
+    {
+        ParkServiceFactory.ShowAIConfigurationHelp();
+        
+        AnsiConsole.WriteLine();
+        
+        var setNow = AnsiConsole.Confirm("[yellow]Would you like to set your OpenAI API key now?[/]");
+        if (setNow)
+        {
+            var apiKey = AnsiConsole.Prompt(
+                new TextPrompt<string>("[green]Enter your OpenAI API key:[/]")
+                    .PromptStyle("green")
+                    .Secret());
+            
+            Environment.SetEnvironmentVariable("OPENAI_API_KEY", apiKey);
+            
+            AnsiConsole.MarkupLine("[green]✅ API key set for this session![/]");
+            AnsiConsole.MarkupLine("[yellow]Note: To persist across sessions, set it in your system environment variables.[/]");
         }
     }
 }
