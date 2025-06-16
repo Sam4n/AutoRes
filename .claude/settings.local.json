@@ -8,7 +8,8 @@
       "Bash(find:*)",
       "WebFetch(domain:learn.microsoft.com)",
       "Bash(rm:*)",
-      "Bash(dotnet run:*)"
+      "Bash(dotnet run:*)",
+      "Bash(dotnet restore:*)"
     ],
     "deny": []
   }

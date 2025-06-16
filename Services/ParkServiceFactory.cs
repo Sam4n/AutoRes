@@ -56,12 +56,8 @@ public static class ParkServiceFactory
     
     public static bool IsAIAvailable()
     {
-        // Mock AI is always available for testing
-        return true;
-        
-        // Uncomment below for real OpenAI integration:
-        // var apiKey = Environment.GetEnvironmentVariable("OPENAI_API_KEY");
-        // return !string.IsNullOrEmpty(apiKey);
+        var apiKey = Environment.GetEnvironmentVariable("OPENAI_API_KEY");
+        return !string.IsNullOrEmpty(apiKey);
     }
     
     public static void ShowAIConfigurationHelp()

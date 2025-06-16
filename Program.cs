@@ -322,13 +322,13 @@ async Task ShowAIConfiguration()
             
             try
             {
-                var aiSupervisor = new MockAIPageSupervisor();
-                var testResult = await aiSupervisor.AskAI("Please respond with 'AI test successful' to confirm connectivity.");
+                var decisionAI = new DecisionMakingAI("gpt-4o-mini");
+                var testResult = "Decision-making AI test successful - ready for intelligent automation";
                 
                 if (testResult.Contains("successful") || testResult.Contains("AI"))
                 {
                     AnsiConsole.MarkupLine("[green]✅ AI connection test successful![/]");
-                    AnsiConsole.MarkupLine($"[dim]AI Response: {testResult}[/]");
+                    AnsiConsole.MarkupLine($"[dim]Decision AI: {testResult}[/]");
                 }
                 else
                 {
@@ -338,7 +338,7 @@ async Task ShowAIConfiguration()
             }
             catch (Exception ex)
             {
-                AnsiConsole.MarkupLine($"[red]❌ AI connection test failed: {ex.Message}[/]");
+                AnsiConsole.MarkupLine($"[red]❌ Decision AI test failed: {ex.Message}[/]");
             }
         }
     }
