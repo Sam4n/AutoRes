@@ -2,6 +2,10 @@ using Spectre.Console;
 using AutoRes.Models;
 using AutoRes.Services;
 
+// Initialize settings service
+var settingsService = new SettingsService();
+var settings = settingsService.GetSettings();
+
 // Display header
 AnsiConsole.Clear();
 var rule = new Rule("[bold blue]BC Parks Reservation Automation[/]");
@@ -77,9 +81,11 @@ async Task MakeReservation()
         ParkName = parkChoice
     };
     
-    // Date selection
-    var datePrompt = new TextPrompt<DateTime>("[green]Enter desired date (YYYY-MM-DD):[/]")
+    // Date selection with default from last reservation
+    var defaultDate = settingsService.GetDefaultDate();
+    var datePrompt = new TextPrompt<DateTime>($"[green]Enter desired date (YYYY-MM-DD) [[{defaultDate:yyyy-MM-dd}]]:[/]")
         .PromptStyle("green")
+        .DefaultValue(defaultDate)
         .ValidationErrorMessage("[red]Please enter a valid date in YYYY-MM-DD format[/]")
         .Validate(date =>
         {
@@ -92,10 +98,12 @@ async Task MakeReservation()
     
     reservation.DesiredDate = AnsiConsole.Prompt(datePrompt);
     
-    // Number of people
+    // Number of people with default from last reservation
+    var defaultPeople = settingsService.GetDefaultNumberOfPeople();
     reservation.NumberOfPeople = AnsiConsole.Prompt(
-        new TextPrompt<int>("[green]Number of people (max 4):[/]")
+        new TextPrompt<int>($"[green]Number of people (max 4) [[{defaultPeople}]]:[/]")
             .PromptStyle("green")
+            .DefaultValue(defaultPeople)
             .ValidationErrorMessage("[red]Please enter a number between 1 and 4[/]")
             .Validate(num =>
             {
@@ -104,17 +112,33 @@ async Task MakeReservation()
                     : ValidationResult.Error("[red]Number must be between 1 and 4[/]");
             }));
     
-    // Email
-    reservation.Email = AnsiConsole.Prompt(
-        new TextPrompt<string>("[green]Enter your email address:[/]")
+    // Email with default from saved settings
+    var emailPrompt = new TextPrompt<string>("[green]Enter your email address:[/]")
+        .PromptStyle("green")
+        .ValidationErrorMessage("[red]Please enter a valid email address[/]")
+        .Validate(email =>
+        {
+            return email.Contains("@") && email.Contains(".") 
+                ? ValidationResult.Success() 
+                : ValidationResult.Error("[red]Invalid email format[/]");
+        });
+    
+    if (!string.IsNullOrEmpty(settings.LastEmail))
+    {
+        emailPrompt.DefaultValue(settings.LastEmail);
+        emailPrompt = new TextPrompt<string>($"[green]Enter your email address [[{settings.LastEmail}]]:[/]")
             .PromptStyle("green")
+            .DefaultValue(settings.LastEmail)
             .ValidationErrorMessage("[red]Please enter a valid email address[/]")
             .Validate(email =>
             {
                 return email.Contains("@") && email.Contains(".") 
                     ? ValidationResult.Success() 
                     : ValidationResult.Error("[red]Invalid email format[/]");
-            }));
+            });
+    }
+    
+    reservation.Email = AnsiConsole.Prompt(emailPrompt);
     
     // Confirmation
     var confirm = AnsiConsole.Confirm(
@@ -140,6 +164,9 @@ async Task MakeReservation()
     
     if (result.Success)
     {
+        // Save the successful reservation details
+        settingsService.SaveLastReservation(parkChoice, reservation.DesiredDate, reservation.NumberOfPeople, reservation.Email);
+        
         var panel = new Panel(
             $"[bold green]Reservation Successful![/]\n\n" +
             $"[yellow]Confirmation Number:[/] {result.ConfirmationNumber ?? "N/A"}\n" +
@@ -203,6 +230,29 @@ async Task CheckAvailability()
 void ViewCredentials()
 {
     AnsiConsole.Clear();
-    AnsiConsole.Write(new Rule("[bold yellow]Saved Credentials[/]"));
-    AnsiConsole.MarkupLine("[yellow]No credentials saved yet. This feature is coming soon![/]");
+    AnsiConsole.Write(new Rule("[bold yellow]Saved Settings[/]"));
+    
+    var currentSettings = settingsService.GetSettings();
+    
+    var table = new Table();
+    table.AddColumn("Setting");
+    table.AddColumn("Value");
+    
+    table.AddRow("Email", currentSettings.LastEmail ?? "[grey]Not set[/]");
+    table.AddRow("Last Park", currentSettings.LastSelectedPark ?? "[grey]Not set[/]");
+    table.AddRow("Last Date", currentSettings.LastSelectedDate?.ToString("yyyy-MM-dd") ?? "[grey]Not set[/]");
+    table.AddRow("Last Party Size", currentSettings.LastNumberOfPeople?.ToString() ?? "[grey]Not set[/]");
+    
+    AnsiConsole.Write(table);
+    
+    if (!string.IsNullOrEmpty(currentSettings.LastEmail))
+    {
+        AnsiConsole.WriteLine();
+        var clearData = AnsiConsole.Confirm("[yellow]Do you want to clear saved settings?[/]");
+        if (clearData)
+        {
+            settingsService.SaveLastReservation("", DateTime.MinValue, 0, "");
+            AnsiConsole.MarkupLine("[green]Settings cleared![/]");
+        }
+    }
 }

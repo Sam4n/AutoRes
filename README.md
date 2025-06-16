@@ -8,6 +8,8 @@ AutoRes is a command-line tool that automates the reservation process for popula
 - 🎨 Beautiful console UI with Spectre.Console
 - 🔍 Availability checking
 - 📸 Screenshot capture of successful reservations
+- 💾 Saves credentials and preferences for faster booking
+- 📅 Remembers last reservation details (date, email, party size)
 - 🚀 Extensible architecture for adding more parks
 
 ## Prerequisites
@@ -50,12 +52,22 @@ Navigate through the menu system to:
 - `Services/`: Park-specific reservation services
 - `Program.cs`: Main entry point with menu system
 
+## Settings Storage
+
+Your preferences are automatically saved after successful reservations:
+- Email address
+- Last selected park
+- Last reservation date
+- Party size
+
+Settings are stored in: `%APPDATA%\AutoRes\settings.json` (Windows) or `~/.config/AutoRes/settings.json` (Linux/Mac)
+
 ## Coming Soon
 
 - Support for more BC Parks (Garibaldi, Golden Ears, etc.)
-- Credential storage for faster booking
 - Automatic retry mechanisms
 - Email notifications
+- Scheduled booking attempts
 
 ## Disclaimer
 

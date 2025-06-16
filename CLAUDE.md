@@ -35,14 +35,17 @@ pwsh bin/Debug/net9.0/playwright.ps1 install
 
 The application follows a service-based architecture:
 
-- `Models/`: Data models for reservations
-- `Services/`: Park-specific reservation services implementing `IParkReservationService`
+- `Models/`: Data models for reservations and user settings
+- `Services/`: 
+  - Park-specific reservation services implementing `IParkReservationService`
+  - `SettingsService`: Handles persistent storage of user preferences
 - `Program.cs`: Main entry point with Spectre.Console menu system
 
 Key patterns:
 - Async/await for all browser operations
 - Service interface for extensibility to other parks
 - Progress indicators and rich console output via Spectre.Console
+- Settings persistence in JSON format to AppData folder
 
 ## Development Notes
 
