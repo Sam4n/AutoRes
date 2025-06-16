@@ -84,14 +84,14 @@ public class AIEnhancedGaribaldiService : IParkReservationService
                     var bookingRules = await _decisionAI.AnalyzeBookingRules();
                     AnsiConsole.MarkupLine($"[dim]📋 Detected rules: {bookingRules.BookingStartTime}, {bookingRules.AdvanceBookingDays} days advance, {bookingRules.TimeLimit} limit[/]");
                     
-                    // Check if the target date is available
+                    // Check if the target date is available (this handles the "closed but has booking options" scenario)
                     var dateAvailability = await _decisionAI.CheckDateAvailability(reservation.DesiredDate);
+                    
+                    AnsiConsole.MarkupLine($"[dim]🧠 AI Analysis: {dateAvailability.Reason}[/]");
+                    AnsiConsole.MarkupLine($"[dim]📋 AI Recommendation: {dateAvailability.RecommendedAction}[/]");
                     
                     if (!dateAvailability.IsAvailable)
                     {
-                        AnsiConsole.MarkupLine($"[yellow]🧠 AI Decision: {dateAvailability.Reason}[/]");
-                        AnsiConsole.MarkupLine($"[yellow]📋 Recommendation: {dateAvailability.RecommendedAction}[/]");
-                        
                         // Handle the situation based on AI decision
                         var decision = await _decisionAI.HandleUnexpectedState(dateAvailability.Reason);
                         
@@ -108,6 +108,9 @@ public class AIEnhancedGaribaldiService : IParkReservationService
                             return;
                         }
                     }
+                    
+                    // AI has determined we can proceed - look for booking buttons
+                    var bookingButtonFound = await FindAndClickBookingButton(page, trailhead);
                     
                     await TakeDebugScreenshot(page, "02_rules_analyzed");
                     
@@ -149,10 +152,55 @@ public class AIEnhancedGaribaldiService : IParkReservationService
                     }
                     else
                     {
-                        var decision = await _decisionAI.HandleUnexpectedState("Reservation submission failed or blocked");
+                        // CRITICAL: Before failing, let AI analyze if this failure is valid
+                        AnsiConsole.MarkupLine("[yellow]🧠 AI analyzing failure to determine if it's valid or can be healed...[/]");
                         
-                        result.Success = false;
-                        result.ErrorMessage = $"Decision AI: {decision.Reason}";
+                        var failureAnalysis = await _decisionAI.AnalyzeFailureAndSuggestHealing(
+                            "Reservation submission failed or blocked", 
+                            page);
+                        
+                        if (!failureAnalysis.IsFailureValid)
+                        {
+                            AnsiConsole.MarkupLine($"[red]❌ AUTOMATION FAILURE DETECTED[/]");
+                            AnsiConsole.MarkupLine($"[yellow]🧠 AI Analysis: {failureAnalysis.Reason}[/]");
+                            AnsiConsole.WriteLine();
+                            
+                            AnsiConsole.MarkupLine("[bold green]🔧 HEALING INSTRUCTIONS:[/]");
+                            foreach (var instruction in failureAnalysis.HealingInstructions)
+                            {
+                                AnsiConsole.MarkupLine($"[green]  {instruction}[/]");
+                            }
+                            
+                            if (failureAnalysis.BookingOptionsFound.Any())
+                            {
+                                AnsiConsole.WriteLine();
+                                AnsiConsole.MarkupLine("[bold blue]🎯 BOOKING OPTIONS FOUND:[/]");
+                                foreach (var option in failureAnalysis.BookingOptionsFound)
+                                {
+                                    AnsiConsole.MarkupLine($"[blue]  • {option}[/]");
+                                }
+                            }
+                            
+                            if (failureAnalysis.AlternativeStrategies.Any())
+                            {
+                                AnsiConsole.WriteLine();
+                                AnsiConsole.MarkupLine("[bold cyan]🔄 ALTERNATIVE STRATEGIES:[/]");
+                                foreach (var strategy in failureAnalysis.AlternativeStrategies)
+                                {
+                                    AnsiConsole.MarkupLine($"[cyan]  • {strategy}[/]");
+                                }
+                            }
+                            
+                            result.Success = false;
+                            result.ErrorMessage = $"AUTOMATION ERROR - AI Found Booking Options Available!\n\nAI Analysis: {failureAnalysis.Reason}\n\nHealing Required: The process failed incorrectly. Booking options are present but were missed by automation.";
+                        }
+                        else
+                        {
+                            AnsiConsole.MarkupLine($"[yellow]🧠 AI confirms failure is valid: {failureAnalysis.Reason}[/]");
+                            result.Success = false;
+                            result.ErrorMessage = $"Confirmed failure: {failureAnalysis.Reason}";
+                        }
+                        
                         _learningService.EndSession(false, result.ErrorMessage);
                     }
                     
@@ -168,11 +216,38 @@ public class AIEnhancedGaribaldiService : IParkReservationService
                     
                     AnsiConsole.MarkupLine($"[red]Error: {ex.Message}[/]");
                     
-                    // Get AI decision on how to handle the error
+                    // Get AI analysis of the exception and potential healing
                     try
                     {
                         var errorDecision = await _decisionAI.HandleUnexpectedState($"Exception occurred: {ex.Message}");
                         AnsiConsole.MarkupLine($"[yellow]🧠 AI Error Decision: {errorDecision.Reason}[/]");
+                        
+                        // Try to analyze if the exception happened due to missed booking opportunities
+                        try
+                        {
+                            using var playwright = await Playwright.CreateAsync();
+                            await using var browser = await playwright.Chromium.LaunchAsync(new() { Headless = true });
+                            var errorPage = await browser.NewPageAsync();
+                            await errorPage.GotoAsync(ReservationUrl);
+                            
+                            var exceptionAnalysis = await _decisionAI.AnalyzeFailureAndSuggestHealing(
+                                $"Exception during automation: {ex.Message}", 
+                                errorPage);
+                            
+                            if (!exceptionAnalysis.IsFailureValid)
+                            {
+                                AnsiConsole.MarkupLine("[red]🚨 EXCEPTION MAY BE DUE TO MISSED BOOKING OPPORTUNITIES![/]");
+                                AnsiConsole.MarkupLine($"[yellow]🧠 {exceptionAnalysis.Reason}[/]");
+                                
+                                AnsiConsole.MarkupLine("[bold green]🔧 HEALING SUGGESTIONS:[/]");
+                                foreach (var instruction in exceptionAnalysis.HealingInstructions)
+                                {
+                                    AnsiConsole.MarkupLine($"[green]  {instruction}[/]");
+                                }
+                            }
+                        }
+                        catch { }
+                        
                         if (errorDecision.ShouldRetry)
                         {
                             AnsiConsole.MarkupLine($"[yellow]💡 AI Recommendation: {errorDecision.Action} in {errorDecision.WaitTime.TotalMinutes} minutes[/]");
@@ -453,6 +528,78 @@ public class AIEnhancedGaribaldiService : IParkReservationService
         catch { }
         
         return "AI-Generated-" + DateTime.Now.ToString("yyyyMMddHHmmss");
+    }
+    
+    private async Task<bool> FindAndClickBookingButton(IPage page, Trailhead trailhead)
+    {
+        try
+        {
+            AnsiConsole.MarkupLine("[dim]🧠 AI searching for booking buttons despite 'closed' status...[/]");
+            
+            // Smart selectors for "Book a Pass" buttons - prioritize by likelihood
+            var bookingSelectors = new[]
+            {
+                // Direct text matches
+                "button:has-text('Book a Pass')",
+                "a:has-text('Book a Pass')",
+                "button:has-text('Book Now')",
+                "a:has-text('Book Now')",
+                "button:has-text('Reserve')",
+                "a:has-text('Reserve')",
+                
+                // Partial matches
+                "button[class*='book']",
+                "button[id*='book']",
+                "a[class*='book']",
+                "a[href*='book']",
+                
+                // General booking-related elements
+                "[data-action*='book']",
+                "[data-action*='reserve']",
+                ".btn-book",
+                ".book-button",
+                "#book-pass",
+                
+                // Garibaldi-specific patterns
+                $"button:has-text('{trailhead}')",
+                $"a:has-text('{trailhead}')"
+            };
+            
+            foreach (var selector in bookingSelectors)
+            {
+                try
+                {
+                    var elements = await page.Locator(selector).AllAsync();
+                    
+                    foreach (var element in elements)
+                    {
+                        if (await element.IsVisibleAsync())
+                        {
+                            var text = await element.TextContentAsync() ?? "";
+                            AnsiConsole.MarkupLine($"[green]🧠 Found booking element: '{text.Trim()}'[/]");
+                            
+                            await element.ClickAsync();
+                            await page.WaitForLoadStateAsync(LoadState.NetworkIdle, new() { Timeout = 5000 });
+                            
+                            AnsiConsole.MarkupLine("[green]✅ Successfully clicked booking button - proceeding despite 'closed' status![/]");
+                            return true;
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    AnsiConsole.MarkupLine($"[dim]⚠️ Selector failed: {selector} - {ex.Message}[/]");
+                }
+            }
+            
+            AnsiConsole.MarkupLine("[yellow]⚠️ No booking buttons found - may need manual intervention[/]");
+            return false;
+        }
+        catch (Exception ex)
+        {
+            AnsiConsole.MarkupLine($"[red]Error finding booking button: {ex.Message}[/]");
+            return false;
+        }
     }
     
     private string ExtractConfirmationFromAIResponse(string aiResponse)

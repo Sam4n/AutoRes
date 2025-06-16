@@ -212,6 +212,23 @@ async Task MakeReservation()
     {
         AnsiConsole.MarkupLine($"[bold red]Reservation Failed[/]");
         AnsiConsole.MarkupLine($"[red]{result.ErrorMessage}[/]");
+        
+        // Check if this is the specific "closed but has options" scenario
+        if (result.ErrorMessage.Contains("closed") && result.ErrorMessage.Contains("reservations"))
+        {
+            AnsiConsole.WriteLine();
+            AnsiConsole.MarkupLine("[yellow]🧠 This appears to be the 'closed but has booking options' scenario.[/]");
+            AnsiConsole.MarkupLine("[yellow]The AI-enhanced automation should have detected and handled this automatically.[/]");
+            AnsiConsole.MarkupLine("[yellow]If you can see booking buttons on the page, this indicates an automation improvement opportunity.[/]");
+        }
+        
+        // Check if AI provided healing instructions
+        if (result.ErrorMessage.Contains("AUTOMATION ERROR") || result.ErrorMessage.Contains("Healing Required"))
+        {
+            AnsiConsole.WriteLine();
+            AnsiConsole.MarkupLine("[bold yellow]⚠️  SELF-HEALING ANALYSIS AVAILABLE[/]");
+            AnsiConsole.MarkupLine("[dim]Check the detailed output above for AI healing instructions.[/]");
+        }
     }
 }
 

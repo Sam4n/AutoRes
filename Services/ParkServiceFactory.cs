@@ -56,7 +56,7 @@ public static class ParkServiceFactory
     
     public static bool IsAIAvailable()
     {
-        var apiKey = Environment.GetEnvironmentVariable("OPENAI_API_KEY");
+        var apiKey = "YOUR_OPENAI_API_KEY";
         return !string.IsNullOrEmpty(apiKey);
     }
     
