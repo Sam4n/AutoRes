@@ -21,7 +21,7 @@ public class DecisionMakingAI
     public DecisionMakingAI(string model = "gpt-4o-mini")
     {
         _httpClient = new HttpClient();
-        _apiKey = "YOUR_OPENAI_API_KEY";
+        _apiKey = Environment.GetEnvironmentVariable("OPENAI_API_KEY");
         _model = model;
         
         if (!string.IsNullOrEmpty(_apiKey))
